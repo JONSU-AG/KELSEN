@@ -1,17 +1,21 @@
-﻿import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyKelsenDefaultApiKeyForDevDemo12345',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'kelsen-unsa-app.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'kelsen-unsa-app',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'kelsen-unsa-app.appspot.com',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '987654321012',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:987654321012:web:kelsenapp12345'
+  apiKey: "AIzaSyDKQ7_BCul-C7LGkKmT7wNfGzyafmDdql8",
+  authDomain: "kelsen-51b97.firebaseapp.com",
+  projectId: "kelsen-51b97",
+  storageBucket: "kelsen-51b97.firebasestorage.app",
+  messagingSenderId: "258601810184",
+  appId: "1:258601810184:web:5c65c691729c7a446e54bd",
+  measurementId: "G-1TKMKTT3P6"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export default app;
