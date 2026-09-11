@@ -1,18 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   BookOpen, Video, Users, Sparkles, LogIn, 
   ChevronRight, Phone, Sun, Moon, Plus, Trash2, 
   Play, Upload, CheckCircle2, Lock, FileText, Check,
-  MapPin, Image, ExternalLink, Menu, X, CloudUpload, Key
+  Image, ExternalLink, Key, CloudUpload
 } from 'lucide-react';
 import { db, storage } from './firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
-const DRIVE_API_KEY = "AIzaSyDU_u71jdpM38iOAu7Q0NpMPnvpfRMveqk";
-const GOOGLE_CLIENT_ID = "258601810184-web.apps.googleusercontent.com"; 
-
 const INITIAL_TEACHERS = [
-  { id: 1, name: 'Profe Cívico', subject: 'Cívica y Filosofía', role: 'COFUNDADOR', experience: '12+ Años Exp.', description: 'Especialista en el prospecto UNSA y referente en enseñanza cívica.', image: null },
+  { id: 1, name: 'Profe Cívico', subject: 'Cívica y Filosofía', role: 'COFUNDADOR', experience: '12+ Años Exp.', description: 'Especialista en el prospecto UNSA y referente en enseñanza cívica.', image: '/PROFECIVICO.jpg' },
   { id: 2, name: 'Prof. Carlos Mendoza', subject: 'Razonamiento Matemático', role: 'DOCENTE TOP', experience: '10 Años Exp.', description: 'Creador del método rápido de resolución de ecuaciones.', image: null },
   { id: 3, name: 'Dra. Elena Rostova', subject: 'Biología y Química', role: 'DOCENTE TOP', experience: '8 Años Exp.', description: 'Doctora en Medicina UNSA, mentora de futuros médicos.', image: null },
   { id: 4, name: 'Prof. Mario Vargas', subject: 'Lenguaje y Raz. Verbal', role: 'DOCENTE TOP', experience: '15 Años Exp.', description: 'Maestro en comprensión lectora y análisis textual.', image: null }
@@ -32,7 +29,6 @@ export default function App() {
   const [teachers, setTeachers] = useState(INITIAL_TEACHERS);
   const [cycles, setCycles] = useState(INITIAL_CYCLES);
 
-  // Intranet & Drive States
   const [dniInput, setDniInput] = useState('');
   const [studentAuth, setStudentAuth] = useState(null);
   const [adminPass, setAdminPass] = useState('');
@@ -42,23 +38,19 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // CMS Form State
   const [newTeacher, setNewTeacher] = useState({ name: '', subject: '', role: 'DOCENTE TOP', experience: '', description: '', image: null });
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-  // Google Drive Authentication Simulation/Integration
   const handleConnectGoogleDrive = () => {
-    // Simulated auth flow for Google Picker
     const userEmail = prompt("Ingresa tu correo de Google para conectar tu Drive personal:", "profesor@gmail.com");
     if (userEmail) {
       setUserDriveEmail(userEmail);
       setDriveConnected(true);
-      alert(`¡Google Drive conectado con éxito!\nCuenta activa: ${userEmail}\n\nLos archivos que subas irán directamente a tu almacenamiento de Google Drive.`);
+      alert(`¡Google Drive conectado!\nCuenta activa: ${userEmail}`);
     }
   };
 
-  // Direct Upload Handler
   const handleFileUpload = (e, folderName, callback) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -79,7 +71,6 @@ export default function App() {
           setUploadProgress(progress);
         },
         (error) => {
-          console.error("Upload error:", error);
           const reader = new FileReader();
           reader.onloadend = () => {
             callback(reader.result);
@@ -91,7 +82,7 @@ export default function App() {
           getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
             callback(downloadURL);
             setUploading(false);
-            alert(`¡Archivo subido exitosamente!\nGuardado en el Drive de: ${targetDrive}\nEnlace público generado para alumnos.`);
+            alert(`¡Archivo subido!\nGuardado en: ${targetDrive}`);
           });
         }
       );
@@ -133,10 +124,16 @@ export default function App() {
       <header className={`sticky top-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('landing')}>
-            <div className="w-12 h-12 bg-slate-900 border-2 border-red-500/40 rounded-xl flex items-center justify-center text-red-500 font-black text-xl shadow-lg">
-              K
-            </div>
+          {/* LOGO IMAGE */}
+          <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setActiveTab('landing')}>
+            <img 
+              src={theme === 'dark' ? '/KELSENNEGRO.jpg' : '/KELSENBLANCO.jpg'} 
+              alt="Kelsen Logo" 
+              className="h-12 w-auto object-contain rounded-xl shadow-lg border border-red-500/30 group-hover:scale-105 transition"
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
             <div>
               <h1 className="text-2xl font-black tracking-wider bg-gradient-to-r from-red-500 via-amber-400 to-amber-500 bg-clip-text text-transparent">
                 KELSEN
@@ -213,11 +210,18 @@ export default function App() {
             {/* HERO PROFE CIVICO FEATURE CARD */}
             <div className="lg:col-span-5 relative">
               <div className="relative bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
+                
+                {/* PROFE CIVICO CARD WITH IMAGE */}
                 <div className="flex items-center space-x-4 p-4 rounded-2xl bg-slate-950 border border-slate-800">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-900 border-2 border-red-500 flex flex-col items-center justify-center text-slate-500">
-                    <Image className="w-6 h-6 mb-1 text-slate-400" />
-                    <span className="text-[9px] font-bold uppercase">Foto</span>
-                  </div>
+                  <img 
+                    src="/PROFECIVICO.jpg" 
+                    alt="Profe Cívico" 
+                    className="w-16 h-16 rounded-2xl object-cover border-2 border-red-500 shadow-lg"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop';
+                    }}
+                  />
                   <div>
                     <span className="bg-red-500/20 text-red-400 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-red-500/30 uppercase">
                       COFUNDADOR & DOCENTE TOP
