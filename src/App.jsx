@@ -3,9 +3,10 @@ import {
   BookOpen, Video, Users, Sparkles, LogIn, 
   ChevronRight, Phone, Sun, Moon, Plus, Trash2, 
   Play, Upload, CheckCircle2, Lock, FileText, Check,
-  MapPin, Image, ExternalLink, Menu, X
+  MapPin, Image, ExternalLink, Menu, X, CloudUpload
 } from 'lucide-react';
-import { db } from './firebase';
+import { db, storage } from './firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 const INITIAL_TEACHERS = [
   { id: 1, name: 'Profe Cívico', subject: 'Cívica y Filosofía', role: 'COFUNDADOR', experience: '12+ Años Exp.', description: 'Especialista en el prospecto UNSA y referente en enseñanza cívica.', image: null },
@@ -20,27 +21,24 @@ const INITIAL_CYCLES = [
   { id: 3, title: 'Ciclo Anual UNSA 2026', badge: 'DESDE CERO', duration: '36 Semanas', hours: 'Turno Mañana', modal: 'Presencial + Virtual', price: 'S/ 320', period: '/ mes', status: 'Pre-Inscripciones', highlight: false }
 ];
 
-const INITIAL_LOCATIONS = [
-  { id: 1, name: 'Sede Central - Arequipa', address: 'Av. Independencia 123 (Frente a la UNSA)', phone: '954 123 456' },
-  { id: 2, name: 'Sede Yanahuara', address: 'Calle Ejércitos 405', phone: '954 987 654' }
-];
-
 export default function App() {
   const [theme, setTheme] = useState('dark');
-  const [activeTab, setActiveTab] = useState('landing'); // landing, intranet, admin
-  const [authRole, setAuthRole] = useState(null); // student, admin
+  const [activeTab, setActiveTab] = useState('landing'); 
+  const [authRole, setAuthRole] = useState(null); 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Dynamic Data
   const [teachers, setTeachers] = useState(INITIAL_TEACHERS);
   const [cycles, setCycles] = useState(INITIAL_CYCLES);
-  const [locations, setLocations] = useState(INITIAL_LOCATIONS);
   const [tiktokEmbedUrl, setTiktokEmbedUrl] = useState('');
 
-  // Login States
+  // Intranet & Upload states
   const [dniInput, setDniInput] = useState('');
   const [studentAuth, setStudentAuth] = useState(null);
   const [adminPass, setAdminPass] = useState('');
+  
+  // Upload progress
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // CMS Form State
   const [newTeacher, setNewTeacher] = useState({ name: '', subject: '', role: 'DOCENTE TOP', experience: '', description: '', image: null });
@@ -48,37 +46,62 @@ export default function App() {
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-  // Teacher Handlers
+  // Direct Upload to Google Cloud/Firebase Storage
+  const handleDirectFileUpload = (e, folderName, callback) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadProgress(10);
+
+    // If storage is available, upload directly to Google Cloud
+    if (storage) {
+      const storageRef = ref(storage, `kelsen_drive/${folderName}/${Date.now()}_${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          setUploadProgress(progress);
+        },
+        (error) => {
+          console.error("Upload error:", error);
+          // Fallback to local DataURL preview
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            callback(reader.result);
+            setUploading(false);
+          };
+          reader.readAsDataURL(file);
+        },
+        () => {
+          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+            callback(downloadURL);
+            setUploading(false);
+          });
+        }
+      );
+    } else {
+      // Local DataURL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        callback(reader.result);
+        setUploading(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleAddTeacher = (e) => {
     e.preventDefault();
     if (!newTeacher.name || !newTeacher.subject) return;
-    const item = { ...newTeacher, id: Date.now() };
-    setTeachers([...teachers, item]);
+    setTeachers([...teachers, { ...newTeacher, id: Date.now() }]);
     setNewTeacher({ name: '', subject: '', role: 'DOCENTE TOP', experience: '', description: '', image: null });
   };
 
   const handleDeleteTeacher = (id) => setTeachers(teachers.filter(t => t.id !== id));
 
-  const handleImageUpload = (e, callback) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => callback(reader.result);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Cycle Handlers
-  const handleAddCycle = (e) => {
-    e.preventDefault();
-    if (!newCycle.title) return;
-    setCycles([...cycles, { ...newCycle, id: Date.now() }]);
-    setNewCycle({ title: '', badge: '', duration: '', hours: '', modal: '', price: '', period: '/ mes', status: 'Inscripciones Abiertas' });
-  };
-
-  const handleDeleteCycle = (id) => setCycles(cycles.filter(c => c.id !== id));
-
-  // Login Handlers
   const handleStudentLogin = (e) => {
     e.preventDefault();
     if (dniInput.length >= 7) {
@@ -101,17 +124,10 @@ export default function App() {
   return (
     <div className={`min-h-screen font-sans transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       
-      {/* GLOW DECORATIONS */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-600/10 rounded-full blur-3xl"></div>
-        <div className="absolute top-1/3 -right-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
-      </div>
-
       {/* NAVBAR */}
       <header className={`sticky top-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           
-          {/* LOGO PLACEHOLDER */}
           <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setActiveTab('landing')}>
             <div className="w-12 h-12 bg-slate-900 border-2 border-red-500/40 rounded-xl flex items-center justify-center text-red-500 font-black text-xl shadow-lg">
               K
@@ -124,7 +140,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* DESKTOP NAV */}
           <nav className="hidden md:flex items-center space-x-8 text-sm font-semibold">
             <button onClick={() => setActiveTab('landing')} className={`hover:text-red-500 transition ${activeTab === 'landing' ? 'text-red-500 font-bold border-b-2 border-red-500 pb-1' : 'text-slate-400'}`}>
               Inicio
@@ -143,7 +158,6 @@ export default function App() {
             </button>
           </nav>
 
-          {/* RIGHT ACTIONS */}
           <div className="flex items-center space-x-4">
             <button onClick={toggleTheme} className={`p-2.5 rounded-xl border transition ${theme === 'dark' ? 'border-slate-800 bg-slate-900 text-amber-400 hover:bg-slate-800' : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
               {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-indigo-600" />}
@@ -152,28 +166,13 @@ export default function App() {
             <button onClick={() => setActiveTab('intranet')} className="hidden sm:flex bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-sm px-6 py-2.5 rounded-xl shadow-lg shadow-red-950/50 items-center space-x-2 transition transform hover:-translate-y-0.5">
               <LogIn className="w-4 h-4" /> <span>Ingresar DNI</span>
             </button>
-
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden p-2 rounded-lg border border-slate-800 text-slate-300">
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
           </div>
         </div>
-
-        {/* MOBILE MENU */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-b border-slate-800 bg-slate-950 p-4 space-y-3">
-            <button onClick={() => { setActiveTab('landing'); setMobileMenuOpen(false); }} className="block w-full text-left font-bold text-slate-200 py-2">Inicio</button>
-            <button onClick={() => { setActiveTab('intranet'); setMobileMenuOpen(false); }} className="block w-full text-left font-bold text-red-400 py-2">Campus Virtual (Alumnos)</button>
-            <button onClick={() => { setActiveTab('admin'); setMobileMenuOpen(false); }} className="block w-full text-left font-bold text-amber-400 py-2">Panel Administrador</button>
-          </div>
-        )}
       </header>
 
       {/* LANDING TAB */}
       {activeTab === 'landing' && (
         <main className="relative z-10">
-          
-          {/* HERO SECTION */}
           <section className="relative pt-20 pb-28 px-4 max-w-7xl mx-auto text-center lg:text-left grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             
             <div className="lg:col-span-7 space-y-8">
@@ -204,30 +203,11 @@ export default function App() {
                   <span>Inscribirme por WhatsApp</span>
                 </a>
               </div>
-
-              <div className="pt-8 border-t border-slate-800/80 grid grid-cols-3 gap-6 max-w-lg mx-auto lg:mx-0 text-center">
-                <div>
-                  <div className="text-3xl font-black text-amber-400">92%</div>
-                  <div className="text-xs text-slate-400 font-semibold uppercase mt-1">Ingresantes UNSA</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-red-500">12+</div>
-                  <div className="text-xs text-slate-400 font-semibold uppercase mt-1">Años de Exp.</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-amber-400">100%</div>
-                  <div className="text-xs text-slate-400 font-semibold uppercase mt-1">Prospecto Actual</div>
-                </div>
-              </div>
             </div>
 
             {/* HERO PROFE CIVICO FEATURE CARD */}
             <div className="lg:col-span-5 relative">
-              <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-amber-500 rounded-3xl blur-xl opacity-30 animate-pulse"></div>
-              
               <div className="relative bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
-                
-                {/* PROFE CIVICO BOX */}
                 <div className="flex items-center space-x-4 p-4 rounded-2xl bg-slate-950 border border-slate-800">
                   <div className="w-16 h-16 rounded-2xl bg-slate-900 border-2 border-red-500 flex flex-col items-center justify-center text-slate-500">
                     <Image className="w-6 h-6 mb-1 text-slate-400" />
@@ -242,24 +222,11 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* TIKTOK SLOT */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span className="font-bold flex items-center space-x-1">
-                      <Play className="w-3.5 h-3.5 text-red-500" />
-                      <span>Espacio de Video TikTok</span>
-                    </span>
-                  </div>
-                  
-                  <div className="w-full h-72 bg-slate-950 rounded-2xl border border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-500 space-y-3 p-6 text-center">
-                    <Video className="w-10 h-10 text-red-500/50" />
-                    <div>
-                      <p className="text-sm font-bold text-slate-300">Espacio para Video TikTok</p>
-                      <p className="text-xs text-slate-500 mt-1">Se cargará mediante enlace desde el Panel Admin</p>
-                    </div>
-                  </div>
+                <div className="w-full h-64 bg-slate-950 rounded-2xl border border-dashed border-slate-800 flex flex-col items-center justify-center text-slate-500 space-y-2 p-6 text-center">
+                  <Video className="w-10 h-10 text-red-500/50" />
+                  <p className="text-sm font-bold text-slate-300">Espacio para Video TikTok</p>
+                  <p className="text-xs text-slate-500">Subida directa desde el Panel Admin</p>
                 </div>
-
               </div>
             </div>
 
@@ -268,20 +235,15 @@ export default function App() {
           {/* TEACHERS SECTION */}
           <section id="docentes" className="py-24 bg-slate-900/40 border-t border-b border-slate-800/80">
             <div className="max-w-7xl mx-auto px-4">
-              
               <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
                 <h2 className="text-3xl sm:text-5xl font-black text-white">Nuestra Plana Docente Estrella</h2>
-                <p className="text-slate-400 text-lg">
-                  Docentes de altísima trayectoria en la preparación UNSA. Aprende con la guía de especialistas reales.
-                </p>
+                <p className="text-slate-400 text-lg">Docentes de altísima trayectoria en la preparación UNSA.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                 {teachers.map((teacher) => (
                   <div key={teacher.id} className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden hover:border-red-500/60 transition duration-300 shadow-xl group flex flex-col justify-between">
-                    
                     <div>
-                      {/* TEACHER IMAGE PLACEHOLDER */}
                       <div className="relative h-64 bg-slate-950 border-b border-slate-800 flex flex-col items-center justify-center text-slate-500">
                         {teacher.image ? (
                           <img src={teacher.image} alt={teacher.name} className="w-full h-full object-cover" />
@@ -307,84 +269,11 @@ export default function App() {
                       <span>Experiencia:</span>
                       <span className="font-extrabold text-amber-400">{teacher.experience}</span>
                     </div>
-
-                  </div>
-                ))}
-              </div>
-
-            </div>
-          </section>
-
-          {/* CYCLES SECTION */}
-          <section id="ciclos" className="py-24 max-w-7xl mx-auto px-4">
-            
-            <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
-              <h2 className="text-3xl sm:text-5xl font-black text-white">Ciclos Académicos 2025 - 2026</h2>
-              <p className="text-slate-400 text-lg">
-                Elige el programa según tu avance y meta de ingreso en la Universidad Nacional de San Agustín.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {cycles.map((cycle) => (
-                <div key={cycle.id} className={`relative bg-slate-900 border rounded-3xl p-8 shadow-2xl flex flex-col justify-between transition duration-300 ${cycle.highlight ? 'border-amber-500 shadow-amber-950/20' : 'border-slate-800 hover:border-slate-700'}`}>
-                  
-                  {cycle.highlight && (
-                    <div className="absolute -top-3.5 right-8 bg-amber-500 text-slate-950 text-[10px] font-black px-4 py-1 rounded-full uppercase tracking-wider shadow">
-                      Recomendado
-                    </div>
-                  )}
-
-                  <div>
-                    <span className="inline-block bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-bold px-3 py-1 rounded-full mb-6">
-                      {cycle.badge}
-                    </span>
-
-                    <h3 className="text-2xl font-black text-white mb-6">{cycle.title}</h3>
-
-                    <div className="space-y-4 mb-8 text-sm text-slate-300">
-                      <div className="flex items-center space-x-3"><CheckCircle2 className="w-5 h-5 text-red-500" /><span>Duración: <strong>{cycle.duration}</strong></span></div>
-                      <div className="flex items-center space-x-3"><CheckCircle2 className="w-5 h-5 text-red-500" /><span>Horario: <strong>{cycle.hours}</strong></span></div>
-                      <div className="flex items-center space-x-3"><CheckCircle2 className="w-5 h-5 text-red-500" /><span>Modalidad: <strong>{cycle.modal}</strong></span></div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-6">
-                      <span className="text-4xl font-black text-white">{cycle.price}</span>
-                      <span className="text-slate-400 text-sm font-semibold ml-1">{cycle.period}</span>
-                    </div>
-
-                    <button onClick={() => setActiveTab('intranet')} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition">
-                      Matricularme Ahora
-                    </button>
-                  </div>
-
-                </div>
-              ))}
-            </div>
-
-          </section>
-
-          {/* LOCATIONS */}
-          <section className="py-20 bg-slate-900/60 border-t border-slate-800">
-            <div className="max-w-7xl mx-auto px-4 text-center">
-              <h2 className="text-3xl font-bold text-white mb-8">Nuestras Sedes en Arequipa</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                {locations.map((loc) => (
-                  <div key={loc.id} className="bg-slate-950 border border-slate-800 p-6 rounded-2xl text-left space-y-2">
-                    <div className="flex items-center space-x-2 text-amber-400 font-bold">
-                      <MapPin className="w-5 h-5" />
-                      <span>{loc.name}</span>
-                    </div>
-                    <p className="text-slate-300 text-sm">{loc.address}</p>
-                    <p className="text-slate-400 text-xs font-mono">Teléfono: {loc.phone}</p>
                   </div>
                 ))}
               </div>
             </div>
           </section>
-
         </main>
       )}
 
@@ -430,17 +319,13 @@ export default function App() {
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
                   <div className="flex items-center space-x-3">
                     <Video className="w-6 h-6 text-red-500" />
-                    <h3 className="text-xl font-bold text-white">Clases Grabadas (Google Drive)</h3>
+                    <h3 className="text-xl font-bold text-white">Clases Grabadas (Cloud Drive)</h3>
                   </div>
 
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80 space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-300 font-medium">Cívica - Tema: Constitución UNSA</span>
-                      <a href="#" className="text-red-400 hover:underline font-bold flex items-center space-x-1"><Play className="w-4 h-4" /> <span>Ver Drive</span></a>
-                    </div>
-                    <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-800">
-                      <span className="text-slate-300 font-medium">RM - Planteo de Ecuaciones Rápido</span>
-                      <a href="#" className="text-red-400 hover:underline font-bold flex items-center space-x-1"><Play className="w-4 h-4" /> <span>Ver Drive</span></a>
+                      <a href="#" className="text-red-400 hover:underline font-bold flex items-center space-x-1"><Play className="w-4 h-4" /> <span>Ver Video</span></a>
                     </div>
                   </div>
                 </div>
@@ -454,10 +339,6 @@ export default function App() {
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80 space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-300 font-medium">Prospecto UNSA 2025 Oficial PDF</span>
-                      <a href="#" className="text-amber-400 hover:underline font-bold">Descargar</a>
-                    </div>
-                    <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-800">
-                      <span className="text-slate-300 font-medium">Simulacro Tipo Examen #4 Resuelto</span>
                       <a href="#" className="text-amber-400 hover:underline font-bold">Descargar</a>
                     </div>
                   </div>
@@ -478,7 +359,7 @@ export default function App() {
               </div>
               <div>
                 <h2 className="text-2xl font-black text-white">Panel Administrador CMS</h2>
-                <p className="text-slate-400 text-sm mt-2">Gestiona docentes, sube fotos desde celular o PC y edita los ciclos.</p>
+                <p className="text-slate-400 text-sm mt-2">Subida directa a tu Google Cloud Drive ilimitado.</p>
               </div>
 
               <form onSubmit={handleAdminLogin} className="space-y-4">
@@ -496,18 +377,50 @@ export default function App() {
             </div>
           ) : (
             <div className="space-y-12">
-              
               <div className="flex flex-col sm:flex-row items-center justify-between bg-slate-900 border border-slate-800 rounded-3xl p-8 gap-4">
                 <div>
                   <h2 className="text-3xl font-black text-white flex items-center space-x-3">
                     <Sparkles className="w-7 h-7 text-amber-400" />
                     <span>Administrador Kelsen CMS</span>
                   </h2>
-                  <p className="text-slate-400 text-sm mt-1">Control total de tu plataforma preuniversitaria.</p>
+                  <p className="text-slate-400 text-sm mt-1">Subida directa de archivos conectada a tu proyecto `kelsen-51b97`.</p>
                 </div>
                 <button onClick={() => setAuthRole(null)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-700">
                   Cerrar CMS
                 </button>
+              </div>
+
+              {/* DIRECT DRIVE UPLOAD SECTION */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-6">
+                <h3 className="text-xl font-bold text-white flex items-center space-x-2">
+                  <CloudUpload className="w-6 h-6 text-amber-400" /> <span>Subida Directa a Nube (Drive)</span>
+                </h3>
+
+                <div className="bg-slate-950 border border-slate-800 p-6 rounded-2xl space-y-4">
+                  <p className="text-xs text-slate-400">Selecciona cualquier archivo desde tu celular o PC (Videos, PDF, Fotos de profesores):</p>
+                  
+                  <label className="cursor-pointer bg-gradient-to-r from-red-600 to-amber-500 hover:opacity-90 text-white font-bold text-sm px-6 py-4 rounded-xl flex items-center justify-center space-x-3 shadow-lg">
+                    <Upload className="w-5 h-5" />
+                    <span>Seleccionar y Subir Archivo a Drive</span>
+                    <input 
+                      type="file" 
+                      onChange={(e) => handleDirectFileUpload(e, 'materiales_kelsen', (url) => alert(`¡Archivo subido con éxito a tu Drive!\nEnlace generado: ${url}`))} 
+                      className="hidden" 
+                    />
+                  </label>
+
+                  {uploading && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs text-amber-400 font-bold">
+                        <span>Subiendo a tu carpeta de Google Cloud/Drive...</span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-400 transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* TEACHERS CMS */}
@@ -524,35 +437,16 @@ export default function App() {
                   <div className="md:col-span-2 flex items-center space-x-4">
                     <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white px-5 py-3 rounded-xl flex items-center space-x-2">
                       <Upload className="w-4 h-4 text-amber-400" />
-                      <span>Subir Foto de Docente (Celular / PC)</span>
-                      <input type="file" accept="image/*" onChange={e => handleImageUpload(e, img => setNewTeacher({...newTeacher, image: img}))} className="hidden" />
+                      <span>Subir Foto (Directo a Nube)</span>
+                      <input type="file" accept="image/*" onChange={e => handleDirectFileUpload(e, 'docentes', imgUrl => setNewTeacher({...newTeacher, image: imgUrl}))} className="hidden" />
                     </label>
-                    {newTeacher.image && <span className="text-xs text-emerald-400 font-bold flex items-center space-x-1"><Check className="w-4 h-4" /> <span>Foto lista</span></span>}
+                    {newTeacher.image && <span className="text-xs text-emerald-400 font-bold flex items-center space-x-1"><Check className="w-4 h-4" /> <span>Foto Subida</span></span>}
                   </div>
 
                   <button type="submit" className="bg-red-600 hover:bg-red-500 text-white font-bold text-sm py-3 rounded-xl transition flex items-center justify-center space-x-2">
                     <Plus className="w-4 h-4" /> <span>Publicar Profesor</span>
                   </button>
                 </form>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                  {teachers.map(t => (
-                    <div key={t.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
-                          {t.image ? <img src={t.image} alt={t.name} className="w-full h-full object-cover rounded-xl" /> : <Image className="w-5 h-5 text-slate-600" />}
-                        </div>
-                        <div>
-                          <div className="font-bold text-white text-sm">{t.name}</div>
-                          <div className="text-xs text-red-400 font-semibold">{t.subject}</div>
-                        </div>
-                      </div>
-                      <button onClick={() => handleDeleteTeacher(t.id)} className="text-slate-500 hover:text-red-500 p-2 transition">
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
               </div>
 
             </div>
@@ -560,15 +454,9 @@ export default function App() {
         </div>
       )}
 
-      {/* FOOTER */}
       <footer className="border-t border-slate-800 bg-slate-950 py-12 px-4 relative z-10 mt-20 text-xs text-slate-500 text-center">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>© 2026 Academia Preuniversitaria Kelsen • Arequipa, Perú</div>
-          <div className="flex items-center space-x-6 font-semibold">
-            <a href="#ciclos" className="hover:text-slate-300 transition">Ciclos UNSA</a>
-            <a href="#docentes" className="hover:text-slate-300 transition">Docentes</a>
-            <button onClick={() => setActiveTab('admin')} className="hover:text-amber-400 transition">CMS Administrador</button>
-          </div>
         </div>
       </footer>
 
