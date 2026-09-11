@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, Video, Users, Sparkles, LogIn, 
-  ChevronRight, Phone, Sun, Moon, Plus, Trash2, 
+  ChevronRight, ChevronLeft, Phone, Sun, Moon, Plus, Trash2, 
   Play, Upload, CheckCircle2, Lock, FileText, Check,
   Image, ExternalLink, Key, CloudUpload, Edit2, Save,
   MapPin, Settings, RefreshCw, Layout, Eye, AlertCircle
@@ -10,16 +10,16 @@ import { db, storage } from './firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 const INITIAL_TEACHERS = [
-  { id: 1, name: 'Profe Cívico', subject: 'Cívica y Filosofía', role: 'COFUNDADOR', experience: '12+ Años Exp.', description: 'Especialista en el prospecto UNSA y referente en enseñanza cívica.', image: '/PROFECIVICO.jpg' },
-  { id: 2, name: 'Prof. Carlos Mendoza', subject: 'Razonamiento Matemático', role: 'DOCENTE TOP', experience: '10 Años Exp.', description: 'Creador del método rápido de resolución de ecuaciones.', image: null },
-  { id: 3, name: 'Dra. Elena Rostova', subject: 'Biología y Química', role: 'DOCENTE TOP', experience: '8 Años Exp.', description: 'Doctora en Medicina UNSA, mentora de futuros médicos.', image: null },
-  { id: 4, name: 'Prof. Mario Vargas', subject: 'Lenguaje y Raz. Verbal', role: 'DOCENTE TOP', experience: '15 Años Exp.', description: 'Maestro en comprensión lectora y análisis textual.', image: null }
+  { id: 1, name: 'Profe Cívico', subject: 'Cívica y Filosofía', role: 'COFUNDADOR', description: 'Especialista en el prospecto UNSA y referente en enseñanza cívica.', image: '/PROFECIVICO.jpg' },
+  { id: 2, name: 'Prof. Carlos Mendoza', subject: 'Razonamiento Matemático', role: 'DOCENTE', description: 'Creador del método rápido de resolución de ejercicios tipo UNSA.', image: null },
+  { id: 3, name: 'Dra. Elena Rostova', subject: 'Biología y Química', role: 'DOCENTE', description: 'Doctora en Medicina UNSA, mentora de futuros alumnos de biomédicas.', image: null },
+  { id: 4, name: 'Prof. Mario Vargas', subject: 'Lenguaje y Raz. Verbal', role: 'DOCENTE', description: 'Maestro en comprensión lectora y análisis textual preuniversitario.', image: null }
 ];
 
 const INITIAL_CYCLES = [
-  { id: 1, title: 'Ciclo Quintos 2025', badge: 'UNSA FASE II', duration: '14 Semanas', hours: 'Mañana & Tarde', modal: 'Presencial + Híbrido', price: 'S/ 380', period: '/ mes', status: 'Inscripciones Abiertas', highlight: true },
-  { id: 2, title: 'Ciclo Intensivo Verano', badge: 'REPASO FRENÉTICO', duration: '8 Semanas', hours: 'Turno Mañana', modal: '100% Presencial', price: 'S/ 420', period: '/ mes', status: 'Últimas Vacantes', highlight: false },
-  { id: 3, title: 'Ciclo Anual UNSA 2026', badge: 'DESDE CERO', duration: '36 Semanas', hours: 'Turno Mañana', modal: 'Presencial + Virtual', price: 'S/ 320', period: '/ mes', status: 'Pre-Inscripciones', highlight: false }
+  { id: 1, title: 'Ciclo Quintos 2025', badge: 'UNSA FASE II', duration: '14 Semanas', hours: 'Mañana & Tarde', modal: 'Presencial + Híbrido', status: 'Inscripciones Abiertas', highlight: true },
+  { id: 2, title: 'Ciclo Intensivo Verano', badge: 'REPASO FRENÉTICO', duration: '8 Semanas', hours: 'Turno Mañana', modal: '100% Presencial', status: 'Últimas Vacantes', highlight: false },
+  { id: 3, title: 'Ciclo Anual UNSA 2026', badge: 'DESDE CERO', duration: '36 Semanas', hours: 'Turno Mañana', modal: 'Presencial + Virtual', status: 'Pre-Inscripciones', highlight: false }
 ];
 
 const INITIAL_LOCATIONS = [
@@ -38,6 +38,9 @@ export default function App() {
   const [locations, setLocations] = useState(INITIAL_LOCATIONS);
   const [tiktokEmbedUrl, setTiktokEmbedUrl] = useState('https://www.tiktok.com/@profecivico');
 
+  // Teacher Carousel Active Index State
+  const [activeTeacherIndex, setActiveTeacherIndex] = useState(0);
+
   // Intranet & Drive States
   const [dniInput, setDniInput] = useState('');
   const [studentAuth, setStudentAuth] = useState(null);
@@ -54,11 +57,29 @@ export default function App() {
   const [editingLocationId, setEditingLocationId] = useState(null);
 
   // CMS Form State
-  const [newTeacher, setNewTeacher] = useState({ name: '', subject: '', role: 'DOCENTE TOP', experience: '', description: '', image: null });
-  const [newCycle, setNewCycle] = useState({ title: '', badge: '', duration: '', hours: '', modal: '', price: '', period: '/ mes', status: 'Inscripciones Abiertas', highlight: false });
+  const [newTeacher, setNewTeacher] = useState({ name: '', subject: '', role: 'DOCENTE', description: '', image: null });
+  const [newCycle, setNewCycle] = useState({ title: '', badge: '', duration: '', hours: '', modal: '', status: 'Inscripciones Abiertas', highlight: false });
   const [newLocation, setNewLocation] = useState({ name: '', address: '', phone: '' });
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  // Carousel controls
+  const nextTeacher = () => {
+    setActiveTeacherIndex((prev) => (prev + 1) % teachers.length);
+  };
+
+  const prevTeacher = () => {
+    setActiveTeacherIndex((prev) => (prev - 1 + teachers.length) % teachers.length);
+  };
+
+  // Auto carousel effect
+  useEffect(() => {
+    if (teachers.length <= 1) return;
+    const interval = setInterval(() => {
+      setActiveTeacherIndex((prev) => (prev + 1) % teachers.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [teachers.length]);
 
   const handleConnectGoogleDrive = () => {
     const userEmail = prompt("Ingresa tu correo de Google para conectar tu Drive personal:", "profesor@gmail.com");
@@ -112,7 +133,7 @@ export default function App() {
     e.preventDefault();
     if (!newTeacher.name || !newTeacher.subject) return;
     setTeachers([...teachers, { ...newTeacher, id: Date.now() }]);
-    setNewTeacher({ name: '', subject: '', role: 'DOCENTE TOP', experience: '', description: '', image: null });
+    setNewTeacher({ name: '', subject: '', role: 'DOCENTE', description: '', image: null });
   };
   const handleDeleteTeacher = (id) => setTeachers(teachers.filter(t => t.id !== id));
   const handleUpdateTeacherField = (id, field, value) => {
@@ -124,7 +145,7 @@ export default function App() {
     e.preventDefault();
     if (!newCycle.title) return;
     setCycles([...cycles, { ...newCycle, id: Date.now() }]);
-    setNewCycle({ title: '', badge: '', duration: '', hours: '', modal: '', price: '', period: '/ mes', status: 'Inscripciones Abiertas', highlight: false });
+    setNewCycle({ title: '', badge: '', duration: '', hours: '', modal: '', status: 'Inscripciones Abiertas', highlight: false });
   };
   const handleDeleteCycle = (id) => setCycles(cycles.filter(c => c.id !== id));
   const handleUpdateCycleField = (id, field, value) => {
@@ -240,7 +261,7 @@ export default function App() {
               </h1>
 
               <p className="text-slate-300 text-lg sm:text-xl font-normal leading-relaxed max-w-2xl">
-                Exámenes tipo admisión, simulacros semanales calificados y el mejor equipo de docentes liderado por mentores con más de 12 años de trayectoria en Arequipa.
+                Exámenes tipo admisión, simulacros semanales calificados y el mejor equipo docente preuniversitario en Arequipa.
               </p>
 
               <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
@@ -269,7 +290,7 @@ export default function App() {
                   />
                   <div>
                     <span className="bg-red-500/20 text-red-400 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-red-500/30 uppercase">
-                      COFUNDADOR & DOCENTE TOP
+                      COFUNDADOR
                     </span>
                     <h3 className="text-xl font-bold text-white mt-1">Profe Cívico</h3>
                     <p className="text-xs text-slate-400">Referente en Cívica y Filosofía en Arequipa</p>
@@ -310,50 +331,113 @@ export default function App() {
 
           </section>
 
-          {/* TEACHERS SECTION */}
-          <section id="docentes" className="py-24 bg-slate-900/40 border-t border-b border-slate-800/80">
+          {/* TEACHERS SECTION - 3D CAROUSEL / SLIDER */}
+          <section id="docentes" className="py-24 bg-slate-900/40 border-t border-b border-slate-800/80 overflow-hidden">
             <div className="max-w-7xl mx-auto px-4">
-              <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
-                <h2 className="text-3xl sm:text-5xl font-black text-white">Nuestra Plana Docente Estrella</h2>
-                <p className="text-slate-400 text-lg">Docentes de altísima trayectoria en la preparación UNSA.</p>
+              <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
+                <h2 className="text-3xl sm:text-5xl font-black text-white">Nuestra Plana Docente</h2>
+                <p className="text-slate-400 text-lg">Especialistas comprometidos con tu vacante en la UNSA.</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {teachers.map((teacher) => (
-                  <div key={teacher.id} className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden hover:border-red-500/60 transition duration-300 shadow-xl group flex flex-col justify-between">
-                    <div>
-                      <div className="relative h-64 bg-slate-950 border-b border-slate-800 flex flex-col items-center justify-center text-slate-500">
-                        {teacher.image ? (
-                          <img src={teacher.image} alt={teacher.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="flex flex-col items-center space-y-2">
-                            <Image className="w-10 h-10 text-slate-600" />
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">[ Foto Docente ]</span>
+              {/* CAROUSEL CONTAINER */}
+              <div className="relative py-8">
+                
+                {/* CHEVRON BUTTONS */}
+                <button 
+                  onClick={prevTeacher}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-slate-900/90 border border-slate-700 text-amber-400 hover:bg-slate-800 shadow-2xl hover:scale-110 transition"
+                  aria-label="Anterior Docente"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button 
+                  onClick={nextTeacher}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-slate-900/90 border border-slate-700 text-amber-400 hover:bg-slate-800 shadow-2xl hover:scale-110 transition"
+                  aria-label="Siguiente Docente"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+
+                {/* 3D Dynamic Slider */}
+                <div className="flex justify-center items-center h-[460px] relative max-w-5xl mx-auto">
+                  {teachers.map((teacher, index) => {
+                    const total = teachers.length;
+                    // Calculate relative position to active index
+                    let offset = (index - activeTeacherIndex + total) % total;
+                    if (offset > total / 2) offset -= total;
+
+                    const isActive = offset === 0;
+                    const isPrev = offset === -1 || (activeTeacherIndex === 0 && index === total - 1);
+                    const isNext = offset === 1 || (activeTeacherIndex === total - 1 && index === 0);
+
+                    let positionClass = 'opacity-0 scale-75 pointer-events-none z-0 translate-x-0';
+                    
+                    if (isActive) {
+                      positionClass = 'z-20 scale-105 opacity-100 translate-x-0 shadow-2xl shadow-red-950/80 border-red-500/80';
+                    } else if (isPrev) {
+                      positionClass = 'z-10 scale-85 opacity-70 -translate-x-[65%] sm:-translate-x-[85%] border-slate-800 cursor-pointer hover:opacity-90';
+                    } else if (isNext) {
+                      positionClass = 'z-10 scale-85 opacity-70 translate-x-[65%] sm:translate-x-[85%] border-slate-800 cursor-pointer hover:opacity-90';
+                    }
+
+                    return (
+                      <div
+                        key={teacher.id}
+                        onClick={() => setActiveTeacherIndex(index)}
+                        className={`absolute w-72 sm:w-80 bg-slate-900 border rounded-3xl overflow-hidden transition-all duration-500 ease-out flex flex-col justify-between ${positionClass}`}
+                        style={{ height: isActive ? '430px' : '370px' }}
+                      >
+                        <div>
+                          <div className={`relative ${isActive ? 'h-52' : 'h-44'} bg-slate-950 border-b border-slate-800 flex flex-col items-center justify-center text-slate-500 transition-all`}>
+                            {teacher.image ? (
+                              <img src={teacher.image} alt={teacher.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="flex flex-col items-center space-y-2">
+                                <Image className="w-10 h-10 text-slate-600" />
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">[ Foto Docente ]</span>
+                              </div>
+                            )}
+                            
+                            {/* ROLE BADGE: ONLY PROFECIVICO IS COFUNDADOR, OTHERS ARE DOCENTE */}
+                            <div className={`absolute top-4 right-4 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-lg ${teacher.role === 'COFUNDADOR' ? 'bg-red-600' : 'bg-slate-800 border border-slate-700'}`}>
+                              {teacher.role === 'COFUNDADOR' ? 'COFUNDADOR' : 'DOCENTE'}
+                            </div>
                           </div>
-                        )}
-                        <div className="absolute top-4 right-4 bg-red-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-lg">
-                          {teacher.role}
+
+                          <div className="p-5 space-y-2">
+                            <h3 className={`font-bold text-white transition ${isActive ? 'text-2xl text-amber-400' : 'text-lg'}`}>
+                              {teacher.name}
+                            </h3>
+                            <p className="text-red-400 font-bold text-xs uppercase tracking-wider">
+                              {teacher.subject}
+                            </p>
+                            <p className="text-slate-300 text-xs leading-relaxed line-clamp-3">
+                              {teacher.description}
+                            </p>
+                          </div>
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
 
-                      <div className="p-6 space-y-3">
-                        <h3 className="text-2xl font-bold text-white group-hover:text-amber-400 transition">{teacher.name}</h3>
-                        <p className="text-red-400 font-bold text-sm">{teacher.subject}</p>
-                        <p className="text-slate-400 text-xs leading-relaxed">{teacher.description}</p>
-                      </div>
-                    </div>
+                {/* DOT INDICATORS */}
+                <div className="flex justify-center items-center space-x-2 mt-4">
+                  {teachers.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveTeacherIndex(idx)}
+                      className={`h-2.5 rounded-full transition-all duration-300 ${activeTeacherIndex === idx ? 'w-8 bg-amber-400' : 'w-2.5 bg-slate-700 hover:bg-slate-600'}`}
+                      aria-label={`Ir al docente ${idx + 1}`}
+                    />
+                  ))}
+                </div>
 
-                    <div className="p-6 pt-0 border-t border-slate-800/60 mt-4 flex items-center justify-between text-xs text-slate-400">
-                      <span>Experiencia:</span>
-                      <span className="font-extrabold text-amber-400">{teacher.experience}</span>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </section>
 
-          {/* CYCLES SECTION */}
+          {/* CYCLES SECTION (NO PRICES DISPLAYED) */}
           <section id="ciclos" className="py-24 max-w-7xl mx-auto px-4">
             <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
               <h2 className="text-3xl sm:text-5xl font-black text-white">Ciclos Académicos 2025 - 2026</h2>
@@ -380,18 +464,15 @@ export default function App() {
                       <div className="flex items-center space-x-3"><CheckCircle2 className="w-5 h-5 text-red-500" /><span>Duración: <strong>{cycle.duration}</strong></span></div>
                       <div className="flex items-center space-x-3"><CheckCircle2 className="w-5 h-5 text-red-500" /><span>Horario: <strong>{cycle.hours}</strong></span></div>
                       <div className="flex items-center space-x-3"><CheckCircle2 className="w-5 h-5 text-red-500" /><span>Modalidad: <strong>{cycle.modal}</strong></span></div>
+                      <div className="flex items-center space-x-3"><CheckCircle2 className="w-5 h-5 text-emerald-400" /><span>Estado: <strong>{cycle.status}</strong></span></div>
                     </div>
                   </div>
 
                   <div>
-                    <div className="mb-6">
-                      <span className="text-4xl font-black text-white">{cycle.price}</span>
-                      <span className="text-slate-400 text-sm font-semibold ml-1">{cycle.period}</span>
-                    </div>
-
-                    <button onClick={() => setActiveTab('intranet')} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition">
-                      Matricularme Ahora
-                    </button>
+                    <a href="https://wa.me/51900000000" target="_blank" rel="noreferrer" className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition flex items-center justify-center space-x-2">
+                      <span>Solicitar Información y Matrícula</span>
+                      <ChevronRight className="w-4 h-4 text-amber-400" />
+                    </a>
                   </div>
                 </div>
               ))}
@@ -525,14 +606,14 @@ export default function App() {
                     <Settings className="w-7 h-7 text-amber-400" />
                     <span>Panel de Customización CMS</span>
                   </h2>
-                  <p className="text-slate-400 text-sm mt-1">Edita la web de nuevo como si fuera una vista editable súper sencilla.</p>
+                  <p className="text-slate-400 text-sm mt-1">Edita la información y contenido de la web de manera instantánea.</p>
                 </div>
                 <button onClick={() => setAuthRole(null)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-5 py-2.5 rounded-xl border border-slate-700">
                   Cerrar CMS
                 </button>
               </div>
 
-              {/* GOOGLE DRIVE DRIVE ACCOUNT SECTION */}
+              {/* GOOGLE DRIVE ACCOUNT SECTION */}
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-bold text-white flex items-center space-x-2">
@@ -565,7 +646,7 @@ export default function App() {
                 </h3>
 
                 <div className="bg-slate-950 border border-slate-800 p-6 rounded-2xl space-y-4">
-                  <p className="text-xs text-slate-400">Normalmente se sube video de TikTok mediante enlace y se reproduce ahí:</p>
+                  <p className="text-xs text-slate-400">Pega la URL de tu video para renovar la presentación principal:</p>
                   <div className="flex gap-4">
                     <input 
                       type="text" 
@@ -594,11 +675,14 @@ export default function App() {
                 {/* ADD TEACHER FORM */}
                 <form onSubmit={handleAddTeacher} className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-950 p-6 rounded-2xl border border-slate-800">
                   <input type="text" placeholder="Nombre del Profesor" value={newTeacher.name} onChange={e => setNewTeacher({...newTeacher, name: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
-                  <input type="text" placeholder="Materia (ej: Biología)" value={newTeacher.subject} onChange={e => setNewTeacher({...newTeacher, subject: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
-                  <input type="text" placeholder="Experiencia (ej: 10 Años Exp.)" value={newTeacher.experience} onChange={e => setNewTeacher({...newTeacher, experience: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
-                  <input type="text" placeholder="Descripción breve" value={newTeacher.description} onChange={e => setNewTeacher({...newTeacher, description: e.target.value})} className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
+                  <input type="text" placeholder="Área / Materia (se completa después)" value={newTeacher.subject} onChange={e => setNewTeacher({...newTeacher, subject: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
+                  <select value={newTeacher.role} onChange={e => setNewTeacher({...newTeacher, role: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-amber-400 font-bold text-sm">
+                    <option value="DOCENTE">DOCENTE</option>
+                    <option value="COFUNDADOR">COFUNDADOR</option>
+                  </select>
+                  <textarea rows={2} placeholder="Descripción o reseña breve" value={newTeacher.description} onChange={e => setNewTeacher({...newTeacher, description: e.target.value})} className="md:col-span-3 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
                   
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 md:col-span-2">
                     <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-white px-5 py-3 rounded-xl flex items-center space-x-2">
                       <Upload className="w-4 h-4 text-amber-400" />
                       <span>Subir Foto</span>
@@ -607,8 +691,8 @@ export default function App() {
                     {newTeacher.image && <span className="text-xs text-emerald-400 font-bold flex items-center space-x-1"><Check className="w-4 h-4" /> <span>Cargada</span></span>}
                   </div>
 
-                  <button type="submit" className="md:col-span-3 bg-red-600 hover:bg-red-500 text-white font-bold text-sm py-3.5 rounded-xl transition flex items-center justify-center space-x-2">
-                    <Plus className="w-5 h-5" /> <span>Agregar Nueva Tarjeta de Profesor</span>
+                  <button type="submit" className="md:col-span-1 bg-red-600 hover:bg-red-500 text-white font-bold text-sm py-3 rounded-xl transition flex items-center justify-center space-x-2">
+                    <Plus className="w-5 h-5" /> <span>Agregar Profesor</span>
                   </button>
                 </form>
 
@@ -638,6 +722,7 @@ export default function App() {
                           />
                           <input 
                             type="text" 
+                            placeholder="Área (se completa después)"
                             value={t.subject} 
                             onChange={e => handleUpdateTeacherField(t.id, 'subject', e.target.value)} 
                             className="bg-transparent border-b border-slate-800 text-xs text-red-400 font-semibold w-full"
@@ -650,13 +735,14 @@ export default function App() {
                       </div>
 
                       <div className="space-y-2">
-                        <input 
-                          type="text" 
-                          placeholder="Rol (ej: COFUNDADOR / DOCENTE TOP)"
+                        <select 
                           value={t.role} 
                           onChange={e => handleUpdateTeacherField(t.id, 'role', e.target.value)} 
                           className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-amber-400 font-bold w-full"
-                        />
+                        >
+                          <option value="DOCENTE">DOCENTE</option>
+                          <option value="COFUNDADOR">COFUNDADOR</option>
+                        </select>
                         <textarea 
                           rows={2} 
                           value={t.description} 
@@ -681,7 +767,6 @@ export default function App() {
                 <form onSubmit={handleAddCycle} className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-950 p-6 rounded-2xl border border-slate-800">
                   <input type="text" placeholder="Título del Ciclo" value={newCycle.title} onChange={e => setNewCycle({...newCycle, title: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
                   <input type="text" placeholder="Insignia (ej: UNSA FASE II)" value={newCycle.badge} onChange={e => setNewCycle({...newCycle, badge: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
-                  <input type="text" placeholder="Precio (ej: S/ 380)" value={newCycle.price} onChange={e => setNewCycle({...newCycle, price: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
                   <input type="text" placeholder="Duración (ej: 14 Semanas)" value={newCycle.duration} onChange={e => setNewCycle({...newCycle, duration: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
                   <input type="text" placeholder="Horario" value={newCycle.hours} onChange={e => setNewCycle({...newCycle, hours: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
                   <input type="text" placeholder="Modalidad" value={newCycle.modal} onChange={e => setNewCycle({...newCycle, modal: e.target.value})} className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm" />
@@ -694,7 +779,7 @@ export default function App() {
                 <div className="space-y-4">
                   {cycles.map((c) => (
                     <div key={c.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
                         <input 
                           type="text" 
                           value={c.title} 
@@ -706,12 +791,6 @@ export default function App() {
                           value={c.badge} 
                           onChange={e => handleUpdateCycleField(c.id, 'badge', e.target.value)} 
                           className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-amber-400 font-bold"
-                        />
-                        <input 
-                          type="text" 
-                          value={c.price} 
-                          onChange={e => handleUpdateCycleField(c.id, 'price', e.target.value)} 
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 font-bold text-white text-sm"
                         />
                       </div>
                       <button onClick={() => handleDeleteCycle(c.id)} className="text-slate-600 hover:text-red-500 p-2 transition">
@@ -737,3 +816,4 @@ export default function App() {
     </div>
   );
 }
+
